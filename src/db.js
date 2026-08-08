@@ -7,7 +7,12 @@ const connectionString =
   process.env.POSTGRES_URL ||
   process.env.POSTGRES_URL_NON_POOLING;
 
-const pool = new Pool({ connectionString });
+// Supabase/Neon 등 관리형 Postgres는 SSL을 요구하며, pg는 연결 문자열의
+// sslmode 파라미터를 자동으로 신뢰하지 않으므로 명시적으로 켜준다.
+const pool = new Pool({
+  connectionString,
+  ssl: connectionString ? { rejectUnauthorized: false } : undefined,
+});
 
 async function init() {
   await pool.query(`
