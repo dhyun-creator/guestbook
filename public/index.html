@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>방명록</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header">
+      <h1>📖 방명록</h1>
+      <div class="admin-area">
+        <span id="adminBadge" class="admin-badge hidden">관리자 모드</span>
+        <button id="adminLoginBtn" class="btn btn-ghost">관리자</button>
+        <button id="adminLogoutBtn" class="btn btn-ghost hidden">로그아웃</button>
+      </div>
+    </header>
+
+    <section class="write-card">
+      <h2>방명록 남기기</h2>
+      <form id="postForm" class="post-form">
+        <div class="form-row">
+          <input type="text" name="nickname" placeholder="이름 또는 별명" maxlength="20" required />
+          <input type="password" name="password" placeholder="비밀번호" required />
+          <input type="password" name="passwordConfirm" placeholder="비밀번호 확인" required />
+        </div>
+        <textarea name="content" placeholder="방명록 내용을 남겨주세요 (최대 500자)" maxlength="500" required></textarea>
+        <div class="form-row form-row-bottom">
+          <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp" />
+          <button type="submit" class="btn btn-primary">등록</button>
+        </div>
+        <p class="form-error" data-role="error"></p>
+      </form>
+    </section>
+
+    <section id="postList" class="post-list"></section>
+
+    <nav id="pagination" class="pagination"></nav>
+  </div>
+
+  <div id="modalRoot" class="modal-root hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal">
+      <p id="modalMessage" class="modal-message"></p>
+      <input id="modalPasswordInput" type="password" class="modal-input" placeholder="비밀번호" />
+      <p id="modalError" class="modal-error"></p>
+      <div class="modal-actions">
+        <button id="modalCancelBtn" class="btn btn-ghost">취소</button>
+        <button id="modalConfirmBtn" class="btn btn-primary">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
