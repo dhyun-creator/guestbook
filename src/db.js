@@ -1,8 +1,13 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+// Vercel의 Postgres 스토리지 통합(Neon, Supabase 등)마다 주입하는 환경변수 이름이
+// 다를 수 있어 흔히 쓰이는 이름들을 순서대로 확인한다.
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.POSTGRES_URL_NON_POOLING;
+
+const pool = new Pool({ connectionString });
 
 async function init() {
   await pool.query(`
