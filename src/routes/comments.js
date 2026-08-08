@@ -1,5 +1,5 @@
 const express = require('express');
-const db = require('../db');
+const { pool } = require('../db');
 const { hashPassword, verifyPassword } = require('../hash');
 
 const router = express.Router();
@@ -34,68 +34,80 @@ function validateNicknameAndContent(nickname, content, res) {
 }
 
 // POST /api/posts/:postId/comments
-router.post('/posts/:postId/comments', (req, res) => {
-  const postId = Number(req.params.postId);
-  const post = db.prepare('SELECT id FROM posts WHERE id = ?').get(postId);
-  if (!post) return res.status(404).json({ error: '원글을 찾을 수 없습니다.' });
+router.post('/posts/:postId/comments', async (req, res, next) => {
+  try {
+    const postId = Number(req.params.postId);
+    const { rows: postRows } = await pool.query('SELECT id FROM posts WHERE id = $1', [postId]);
+    if (!postRows[0]) return res.status(404).json({ error: '원글을 찾을 수 없습니다.' });
 
-  const { nickname, password, passwordConfirm, content } = req.body;
+    const { nickname, password, passwordConfirm, content } = req.body;
 
-  if (!validateNicknameAndContent(nickname, content, res)) return;
+    if (!validateNicknameAndContent(nickname, content, res)) return;
 
-  if (!password) {
-    return res.status(400).json({ error: '비밀번호를 입력해주세요.' });
+    if (!password) {
+      return res.status(400).json({ error: '비밀번호를 입력해주세요.' });
+    }
+    if (password !== passwordConfirm) {
+      return res.status(400).json({ error: '비밀번호가 일치하지 않습니다.' });
+    }
+
+    const passwordHash = hashPassword(password);
+    const { rows } = await pool.query(
+      'INSERT INTO comments (post_id, nickname, password_hash, content) VALUES ($1, $2, $3, $4) RETURNING *',
+      [postId, nickname.trim(), passwordHash, content.trim()]
+    );
+
+    res.status(201).json(sanitizeComment(rows[0]));
+  } catch (err) {
+    next(err);
   }
-  if (password !== passwordConfirm) {
-    return res.status(400).json({ error: '비밀번호가 일치하지 않습니다.' });
-  }
-
-  const passwordHash = hashPassword(password);
-  const info = db
-    .prepare(
-      'INSERT INTO comments (post_id, nickname, password_hash, content) VALUES (?, ?, ?, ?)'
-    )
-    .run(postId, nickname.trim(), passwordHash, content.trim());
-
-  const comment = db.prepare('SELECT * FROM comments WHERE id = ?').get(info.lastInsertRowid);
-  res.status(201).json(sanitizeComment(comment));
 });
 
 // PUT /api/comments/:id
-router.put('/comments/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const comment = db.prepare('SELECT * FROM comments WHERE id = ?').get(id);
-  if (!comment) return res.status(404).json({ error: '답글을 찾을 수 없습니다.' });
+router.put('/comments/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const { rows } = await pool.query('SELECT * FROM comments WHERE id = $1', [id]);
+    const comment = rows[0];
+    if (!comment) return res.status(404).json({ error: '답글을 찾을 수 없습니다.' });
 
-  const { nickname, password, content } = req.body;
+    const { nickname, password, content } = req.body;
 
-  if (!password || !verifyPassword(password, comment.password_hash)) {
-    return res.status(403).json({ error: '비밀번호가 일치하지 않습니다.' });
+    if (!password || !verifyPassword(password, comment.password_hash)) {
+      return res.status(403).json({ error: '비밀번호가 일치하지 않습니다.' });
+    }
+
+    if (!validateNicknameAndContent(nickname, content, res)) return;
+
+    const { rows: updatedRows } = await pool.query(
+      'UPDATE comments SET nickname = $1, content = $2, updated_at = now() WHERE id = $3 RETURNING *',
+      [nickname.trim(), content.trim(), id]
+    );
+
+    res.json(sanitizeComment(updatedRows[0]));
+  } catch (err) {
+    next(err);
   }
-
-  if (!validateNicknameAndContent(nickname, content, res)) return;
-
-  db.prepare(
-    "UPDATE comments SET nickname = ?, content = ?, updated_at = datetime('now', 'localtime') WHERE id = ?"
-  ).run(nickname.trim(), content.trim(), id);
-
-  const updated = db.prepare('SELECT * FROM comments WHERE id = ?').get(id);
-  res.json(sanitizeComment(updated));
 });
 
 // DELETE /api/comments/:id
-router.delete('/comments/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const comment = db.prepare('SELECT * FROM comments WHERE id = ?').get(id);
-  if (!comment) return res.status(404).json({ error: '답글을 찾을 수 없습니다.' });
+router.delete('/comments/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const { rows } = await pool.query('SELECT * FROM comments WHERE id = $1', [id]);
+    const comment = rows[0];
+    if (!comment) return res.status(404).json({ error: '답글을 찾을 수 없습니다.' });
 
-  const { password } = req.body;
-  if (!password || !verifyPassword(password, comment.password_hash)) {
-    return res.status(403).json({ error: '비밀번호가 일치하지 않습니다.' });
+    const { password } = req.body;
+    if (!password || !verifyPassword(password, comment.password_hash)) {
+      return res.status(403).json({ error: '비밀번호가 일치하지 않습니다.' });
+    }
+
+    await pool.query('DELETE FROM comments WHERE id = $1', [id]);
+    res.status(204).send();
+  } catch (err) {
+    next(err);
   }
-
-  db.prepare('DELETE FROM comments WHERE id = ?').run(id);
-  res.status(204).send();
 });
 
 module.exports = router;

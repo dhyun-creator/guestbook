@@ -1,20 +1,10 @@
 const multer = require('multer');
 const path = require('node:path');
 const crypto = require('node:crypto');
-
-const uploadDir = path.join(__dirname, '..', '..', 'uploads');
+const { put, del } = require('@vercel/blob');
 
 const ALLOWED_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uniqueName = `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
-    cb(null, uniqueName);
-  },
-});
 
 function fileFilter(req, file, cb) {
   const ext = path.extname(file.originalname).toLowerCase();
@@ -25,9 +15,28 @@ function fileFilter(req, file, cb) {
 }
 
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: { fileSize: MAX_SIZE_BYTES, files: 1 },
 });
 
-module.exports = { upload, uploadDir };
+async function uploadImageToBlob(file) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const key = `uploads/${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
+  const blob = await put(key, file.buffer, {
+    access: 'public',
+    contentType: file.mimetype,
+  });
+  return blob.url;
+}
+
+async function deleteBlobIfExists(url) {
+  if (!url) return;
+  try {
+    await del(url);
+  } catch {
+    // 이미 삭제되었거나 존재하지 않는 경우 무시
+  }
+}
+
+module.exports = { upload, uploadImageToBlob, deleteBlobIfExists };

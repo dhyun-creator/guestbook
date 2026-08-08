@@ -2,7 +2,7 @@
 
 - 문서 버전: 1.0
 - 작성일: 2026-08-08
-- 대상 코드: `server.js`, `src/routes/posts.js`, `src/routes/comments.js`, `src/routes/admin.js`
+- 대상 코드: `src/app.js`, `src/routes/posts.js`, `src/routes/comments.js`, `src/routes/admin.js`
 
 ---
 
@@ -17,7 +17,7 @@ http://localhost:3000/api
 ### 1.2 인증 방식
 
 - **일반 글/답글**: 별도 로그인 없음. 작성 시 설정한 **비밀번호**를 수정/삭제 요청 본문에 함께 보내 서버가 대조(bcrypt)하는 방식.
-- **관리자**: `POST /api/admin/login` 으로 로그인하면 세션 쿠키(`connect.sid`, httpOnly)가 발급된다. 이후 관리자 전용 API는 이 쿠키를 함께 전송해야 한다. (요청 시 `credentials: 'include'` 또는 쿠키 자동 전송 필요)
+- **관리자**: `POST /api/admin/login` 으로 로그인하면 서명된 무상태(stateless) 토큰이 `admin_token` 쿠키(httpOnly, 2시간 만료)로 발급된다. 서버에 세션을 저장하지 않고 쿠키 값 자체를 매 요청마다 HMAC 서명 검증한다(서버리스 환경에서도 인스턴스 간 세션 공유 문제 없이 동작). 이후 관리자 전용 API는 이 쿠키를 함께 전송해야 한다. (요청 시 `credentials: 'include'` 또는 쿠키 자동 전송 필요)
 
 ### 1.3 공통 응답 형식
 
@@ -75,7 +75,7 @@ GET /api/posts?page={page}
       "id": 1,
       "nickname": "홍길동",
       "content": "안녕하세요! 방명록 테스트입니다.",
-      "image_url": "/uploads/1735-abcd1234.png",
+      "image_url": "https://<blob-store>.public.blob.vercel-storage.com/uploads/1735-abcd1234.png",
       "created_at": "2026-08-08 09:30:00",
       "updated_at": null,
       "comments": [
@@ -366,7 +366,7 @@ DELETE /api/admin/comments/:id
 | id | number | 글 ID |
 | nickname | string | 이름/별명 |
 | content | string | 본문 |
-| image_url | string \| null | 첨부 이미지 경로 (`/uploads/...`) |
+| image_url | string \| null | 첨부 이미지의 Vercel Blob 공개 URL (`https://*.public.blob.vercel-storage.com/...`) |
 | created_at | string | 작성일시 (`YYYY-MM-DD HH:mm:ss`) |
 | updated_at | string \| null | 수정일시, 수정 이력 없으면 null |
 | comments | Comment[] | 목록 조회(2.1) 및 글 수정(2.3) 응답에만 포함 |
